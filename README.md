@@ -15,10 +15,12 @@
 [![Netlify](https://img.shields.io/badge/Netlify-00C7B7?style=for-the-badge&logo=netlify&logoColor=white)](https://netlify.com)
 [![License](https://img.shields.io/badge/License-MIT-22C55E?style=for-the-badge)](LICENSE)
 
-[![GitHub stars](https://img.shields.io/github/stars/Sir-S27/weather-app?style=social)](https://github.com/Sir-S27/weather-app)
-[![GitHub forks](https://img.shields.io/github/forks/Sir-S27/weather-app?style=social)](https://github.com/Sir-S27/weather-app)
-[![GitHub last commit](https://img.shields.io/github/last-commit/Sir-S27/weather-app?color=818CF8)](https://github.com/Sir-S27/weather-app)
-[![GitHub repo size](https://img.shields.io/github/repo-size/Sir-S27/weather-app?color=818CF8)](https://github.com/Sir-S27/weather-app)
+[![OpenWeatherMap](https://img.shields.io/badge/API-OpenWeatherMap-E24B4A?style=for-the-badge&logo=icloud&logoColor=white)](https://openweathermap.org/api)
+[![Leaflet](https://img.shields.io/badge/Map-Leaflet.js-199900?style=for-the-badge&logo=leaflet&logoColor=white)](https://leafletjs.com)
+[![Chart.js](https://img.shields.io/badge/Chart-Chart.js-FF6384?style=for-the-badge&logo=chartdotjs&logoColor=white)](https://chartjs.org)
+[![Vanilla JS](https://img.shields.io/badge/No_Framework-Vanilla_JS-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)]()
+[![Dark Theme](https://img.shields.io/badge/Theme-Dark_Mode-1a1a2e?style=for-the-badge&logoColor=white)]()
+[![Real-time](https://img.shields.io/badge/Data-Real--Time-22C55E?style=for-the-badge&logo=rss&logoColor=white)]()
 
 <br/>
 
