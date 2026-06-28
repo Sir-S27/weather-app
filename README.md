@@ -4,7 +4,7 @@
 
 <br/>
 
-<img src="https://readme-typing-svg.demolab.com?font=Inter&weight=800&size=28&pause=1200&color=818CF8&center=true&vCenter=true&width=700&lines=🌤️+Modern+Weather+Application;📈+Interactive+Charts+%26+Maps;📍+GPS+Detection+%26+Autocomplete;🔒+Secure+API+via+Netlify+Functions" />
+![Typing SVG](https://readme-typing-svg.demolab.com?font=Inter&weight=800&size=28&pause=1200&color=818CF8&center=true&vCenter=true&width=700&lines=🌤️+Modern+Weather+Application;📈+Interactive+Charts+%26+Maps;📍+GPS+Detection+%26+Autocomplete;🔒+Secure+API+via+Netlify+Functions)
 
 <br/>
 
@@ -15,10 +15,10 @@
 [![Netlify](https://img.shields.io/badge/Netlify-00C7B7?style=for-the-badge&logo=netlify&logoColor=white)](https://netlify.com)
 [![License](https://img.shields.io/badge/License-MIT-22C55E?style=for-the-badge)](LICENSE)
 
-[![GitHub stars](https://img.shields.io/github/stars/username/weather-app?style=social)](https://github.com/username/weather-app)
-[![GitHub forks](https://img.shields.io/github/forks/username/weather-app?style=social)](https://github.com/username/weather-app)
-[![GitHub last commit](https://img.shields.io/github/last-commit/username/weather-app?color=818CF8)](https://github.com/username/weather-app)
-[![GitHub repo size](https://img.shields.io/github/repo-size/username/weather-app?color=818CF8)](https://github.com/username/weather-app)
+[![GitHub stars](https://img.shields.io/github/stars/Sir-S27/weather-app?style=social)](https://github.com/Sir-S27/weather-app)
+[![GitHub forks](https://img.shields.io/github/forks/Sir-S27/weather-app?style=social)](https://github.com/Sir-S27/weather-app)
+[![GitHub last commit](https://img.shields.io/github/last-commit/Sir-S27/weather-app?color=818CF8)](https://github.com/Sir-S27/weather-app)
+[![GitHub repo size](https://img.shields.io/github/repo-size/Sir-S27/weather-app?color=818CF8)](https://github.com/Sir-S27/weather-app)
 
 <br/>
 
@@ -52,17 +52,17 @@
 <div align="center">
 
 ### 🌡️ Current Weather
-<img src="ss1.png" alt="Current Weather" width="90%"/>
+<img src="img/ss1.png" alt="Current Weather" width="90%"/>
 
 <br/><br/>
 
 ### 📈 Charts & Forecast
-<img src="ss2.png" alt="Charts and Forecast" width="90%"/>
+<img src="img/ss2.png" alt="Charts and Forecast" width="90%"/>
 
 <br/><br/>
 
 ### 🗺️ Interactive Map
-<img src="ss3.png" alt="Interactive Map" width="90%"/>
+<img src="img/ss3.png" alt="Interactive Map" width="90%"/>
 
 </div>
 
@@ -173,7 +173,7 @@ WeatherVibe/
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/username/weather-app.git
+git clone https://github.com/Sir-S27/weather-app.git
 cd weather-app
 
 # 2. Run with Live Server (VS Code extension)
@@ -319,7 +319,7 @@ git push origin feature/amazing-feature
 # 5. Open a Pull Request
 ```
 
-**Found a bug?** Open an [Issue](https://github.com/username/weather-app/issues) with:
+**Found a bug?** Open an [Issue](https://github.com/Sir-S27/weather-app/issues) with:
 - Screenshot
 - Browser name & version
 - Steps to reproduce
@@ -355,7 +355,7 @@ Distributed under the [MIT License](LICENSE). Free to use, modify, and improve.
 
 <br/>
 
-<img src="https://readme-typing-svg.demolab.com?font=Inter&size=16&pause=1000&color=818CF8&center=true&vCenter=true&width=500&lines=Thanks+for+visiting!+☀️;Have+a+great+day!;Don't+forget+to+⭐+the+repo!" />
+![Typing SVG](https://readme-typing-svg.demolab.com?font=Inter&size=16&pause=1000&color=818CF8&center=true&vCenter=true&width=500&lines=Thanks+for+visiting!+☀️;Have+a+great+day!;Don%27t+forget+to+⭐+the+repo!)
 
 <br/>
 
