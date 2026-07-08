@@ -481,6 +481,31 @@ async function fetchWeatherByCoords(lat, lon) {
 }
 
 // ─────────────────────────────────────────────────────────────
+//  DETAILED LOCATION NAME (OWM only resolves down to kabupaten/kota;
+//  Nominatim/OSM usually has village, suburb, kecamatan-level data)
+// ─────────────────────────────────────────────────────────────
+async function fetchDetailedLocationName(lat, lon) {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=16&addressdetails=1&accept-language=id`
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const a = data.address || {};
+    // Most specific first: desa/kelurahan/dusun/lingkungan, then kecamatan-ish, then kabupaten/kota
+    const specific = a.village || a.hamlet || a.suburb || a.neighbourhood || a.quarter;
+    const district = a.city_district || a.town || a.municipality;
+    const regency  = a.county || a.city || a.state_district;
+    const parts = [specific, district, regency].filter(Boolean);
+    // De-dupe consecutive identical names (e.g. village === regency in small towns)
+    const unique = parts.filter((p, i) => p !== parts[i - 1]);
+    return unique.length ? unique.slice(0, 2).join(', ') : null;
+  } catch {
+    return null; // offline / rate-limited — silently keep the OWM name
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 //  RENDER ALL
 // ─────────────────────────────────────────────────────────────
 function renderAll(current, forecast) {
@@ -497,6 +522,13 @@ function renderAll(current, forecast) {
   state.lastCoords = { lat, lon };
   updateMap(lat, lon, current);
   showDashboard();
+
+  // Upgrade "Kabupaten X" -> "Desa/Kecamatan Y, Kabupaten X" once resolved
+  fetchDetailedLocationName(lat, lon).then(detailed => {
+    if (detailed) {
+      dom.heroCity.textContent = `${detailed}, ${current.sys.country}`;
+    }
+  });
 }
 
 // ─────────────────────────────────────────────────────────────
