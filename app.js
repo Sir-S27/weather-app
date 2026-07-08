@@ -10,8 +10,115 @@
 // ─────────────────────────────────────────────────────────────
 const OWM_BASE    = 'https://api.openweathermap.org/data/2.5';
 const OWM_GEO     = 'https://api.openweathermap.org/geo/1.0';
-const ICON_BASE   = 'https://openweathermap.org/img/wn';
 const STORAGE_KEY_UNIT = 'wv_unit';
+
+// ─────────────────────────────────────────────────────────────
+//  CUSTOM WEATHER ICONS (flat, navy-blue themed, replaces OWM PNGs)
+// ─────────────────────────────────────────────────────────────
+const WeatherIcons = (() => {
+  // Reusable pieces -------------------------------------------------
+  const sun = (cx, cy, r) => `
+    <g stroke="#fb923c" stroke-width="3.2" stroke-linecap="round">
+      <line x1="${cx}" y1="${cy - r - 9}" x2="${cx}" y2="${cy - r - 2}"/>
+      <line x1="${cx}" y1="${cy + r + 2}" x2="${cx}" y2="${cy + r + 9}"/>
+      <line x1="${cx - r - 9}" y1="${cy}" x2="${cx - r - 2}" y2="${cy}"/>
+      <line x1="${cx + r + 2}" y1="${cy}" x2="${cx + r + 9}" y2="${cy}"/>
+      <line x1="${cx - r - 6.3}" y1="${cy - r - 6.3}" x2="${cx - r - 1.4}" y2="${cy - r - 1.4}"/>
+      <line x1="${cx + r + 1.4}" y1="${cy + r + 1.4}" x2="${cx + r + 6.3}" y2="${cy + r + 6.3}"/>
+      <line x1="${cx - r - 6.3}" y1="${cy + r + 6.3}" x2="${cx - r - 1.4}" y2="${cy + r + 1.4}"/>
+      <line x1="${cx + r + 1.4}" y1="${cy - r - 1.4}" x2="${cx + r + 6.3}" y2="${cy - r - 6.3}"/>
+    </g>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#sunGrad)"/>`;
+
+  const moon = (cx, cy, r) => `
+    <path d="M${cx + r * 0.6} ${cy - r}
+             a${r} ${r} 0 1 0 ${r * 0.3} ${r * 1.9}
+             a${r * 1.25} ${r * 1.25} 0 0 1 ${-r * 0.3} ${-r * 1.9}Z"
+          fill="url(#moonGrad)"/>
+    <circle cx="${cx - r * 1.6}" cy="${cy - r * 1.3}" r="1.5" fill="#eaf1ff"/>
+    <circle cx="${cx - r * 2.3}" cy="${cy + r * 0.3}" r="1" fill="#eaf1ff"/>`;
+
+  const cloud = (cx, cy, scale, fill) => `
+    <path transform="translate(${cx} ${cy}) scale(${scale})"
+      d="M-19 10h32a11 11 0 0 0 1-22 15.5 15.5 0 0 0-29.5-5A12 12 0 0 0-28 0a11 11 0 0 0 9 10Z"
+      fill="${fill}"/>`;
+
+  const rainDrops = (cx, cy, heavy, color) => {
+    const xs = heavy ? [-14, -2, 10, -8, 4] : [-10, 2, 12];
+    return xs.map((dx, i) => `
+      <line x1="${cx + dx}" y1="${cy + (i % 2 ? 2 : 0)}" x2="${cx + dx - 4}" y2="${cy + (i % 2 ? 2 : 0) + 12}"
+        stroke="${color}" stroke-width="3" stroke-linecap="round"/>`).join('');
+  };
+
+  const snowFlakes = (cx, cy) => [-13, 0, 13].map(dx => `
+    <g stroke="#c9dbf9" stroke-width="2" stroke-linecap="round" transform="translate(${cx + dx} ${cy + 6})">
+      <line x1="0" y1="-5" x2="0" y2="5"/>
+      <line x1="-4.3" y1="-2.5" x2="4.3" y2="2.5"/>
+      <line x1="-4.3" y1="2.5" x2="4.3" y2="-2.5"/>
+    </g>`).join('');
+
+  const bolt = (cx, cy) => `
+    <path d="M${cx + 3} ${cy - 6} l-9 12h6l-4 10 11-14h-6Z" fill="#fbbf24" stroke="#f59e0b" stroke-width="0.5"/>`;
+
+  const fogLines = (cy) => [0, 9, 18].map((dy, i) => `
+    <line x1="${14 + (i % 2) * 4}" y1="${cy + dy}" x2="${50 - (i % 2) * 4}" y2="${cy + dy}"
+      stroke="#9db8de" stroke-width="3.4" stroke-linecap="round" opacity="${i === 1 ? 0.6 : 0.85}"/>`).join('');
+
+  const wrap = inner => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+    <defs>
+      <linearGradient id="sunGrad" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#ffd166"/><stop offset="1" stop-color="#fb923c"/>
+      </linearGradient>
+      <linearGradient id="moonGrad" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#cfe0fb"/><stop offset="1" stop-color="#8fb3f0"/>
+      </linearGradient>
+      <linearGradient id="cloudGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#f4f8ff"/><stop offset="1" stop-color="#d3e1f8"/>
+      </linearGradient>
+      <linearGradient id="cloudGradDark" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#c3d3f0"/><stop offset="1" stop-color="#9db3dd"/>
+      </linearGradient>
+    </defs>${inner}</svg>`;
+
+  // Icon families, keyed like OWM codes but self-contained ----------
+  const FAMILIES = {
+    '01': night => wrap(night ? moon(34, 30, 12) : sun(32, 30, 13)),
+    '02': night => wrap(`
+      ${night ? moon(24, 24, 9) : sun(24, 22, 10)}
+      ${cloud(36, 40, 1.05, 'url(#cloudGrad)')}`),
+    '03': () => wrap(cloud(32, 34, 1.3, 'url(#cloudGrad)')),
+    '04': () => wrap(`
+      ${cloud(24, 28, 0.95, 'url(#cloudGradDark)')}
+      ${cloud(38, 40, 1.15, 'url(#cloudGrad)')}`),
+    '09': () => wrap(`
+      ${cloud(32, 28, 1.15, 'url(#cloudGradDark)')}
+      ${rainDrops(32, 42, true, '#4f8ef7')}`),
+    '10': night => wrap(`
+      ${night ? moon(20, 18, 7) : sun(20, 17, 8)}
+      ${cloud(34, 30, 1.05, 'url(#cloudGrad)')}
+      ${rainDrops(32, 44, false, '#4f8ef7')}`),
+    '11': () => wrap(`
+      ${cloud(32, 26, 1.1, 'url(#cloudGradDark)')}
+      ${bolt(30, 40)}`),
+    '13': () => wrap(`
+      ${cloud(32, 26, 1.05, 'url(#cloudGrad)')}
+      ${snowFlakes(32, 38)}`),
+    '50': () => wrap(fogLines(28)),
+  };
+
+  function svgFor(owmCode) {
+    const family = (owmCode || '01d').slice(0, 2);
+    const night  = (owmCode || '01d').endsWith('n');
+    const build  = FAMILIES[family] || FAMILIES['01'];
+    return build(night);
+  }
+
+  function dataUri(owmCode) {
+    return 'data:image/svg+xml;utf8,' + encodeURIComponent(svgFor(owmCode));
+  }
+
+  return { dataUri };
+})();
 
 // ─────────────────────────────────────────────────────────────
 //  STATE
@@ -398,7 +505,7 @@ function renderAll(current, forecast) {
 function renderHero(d) {
   const unitSym = state.unit === 'metric' ? 'C' : 'F';
   dom.heroCity.textContent  = `${d.name}, ${d.sys.country}`;
-  dom.heroIcon.src          = `${ICON_BASE}/${d.weather[0].icon}@2x.png`;
+  dom.heroIcon.src          = WeatherIcons.dataUri(d.weather[0].icon);
   dom.heroDesc.textContent  = capitalise(d.weather[0].description);
   dom.heroSubDesc.textContent = `Terasa seperti ${Math.round(d.main.feels_like)}°${unitSym} · Kelembaban ${d.main.humidity}%`;
   dom.chartCityLabel.textContent = `${d.name}`;
@@ -414,7 +521,7 @@ function renderRightPanel(d) {
     ? Math.round(d.wind.speed * 3.6)
     : Math.round(d.wind.speed);
 
-  dom.rightIcon.src          = `${ICON_BASE}/${d.weather[0].icon}@2x.png`;
+  dom.rightIcon.src          = WeatherIcons.dataUri(d.weather[0].icon);
   // Update temp number without destroying the unit <span> inside
   // Structure: <div id="right-temp">NUMBER<span class="right-unit">...</span></div>
   const tempNum = dom.rightTemp.firstChild;
@@ -464,7 +571,7 @@ function renderForecastList(forecast) {
     row.className = 'forecast-row';
     row.innerHTML = `
       <span class="forecast-day">${dayStr}</span>
-      <img class="forecast-row-icon" src="${ICON_BASE}/${mid.weather[0].icon}@2x.png" alt="${mid.weather[0].description}" />
+      <img class="forecast-row-icon" src="${WeatherIcons.dataUri(mid.weather[0].icon)}" alt="${mid.weather[0].description}" />
       <div class="forecast-row-info">
         <span class="forecast-row-desc">${mid.weather[0].description}</span>
         ${pop > 0 ? `<span class="forecast-row-pop">💧 ${pop}%</span>` : ''}
@@ -815,7 +922,7 @@ function updateMap(lat, lon, current) {
 
   if (state.leafletMarker) state.leafletMarker.remove();
 
-  const iconUrl = `${ICON_BASE}/${current.weather[0].icon}@2x.png`;
+  const iconUrl = WeatherIcons.dataUri(current.weather[0].icon);
   const unitSym = state.unit === 'metric' ? 'C' : 'F';
   const temp    = Math.round(current.main.temp);
   const windVal = state.unit === 'metric'

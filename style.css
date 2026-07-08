@@ -620,3 +620,39 @@ html, body {
   .hero-right { flex-direction: row; align-items: center; width: 100%; justify-content: space-between; }
   .right-stats { grid-template-columns: 1fr 1fr; gap: 8px; }
 }
+
+/* ─── SHORT VIEWPORT FALLBACK ───
+   The "no-scroll desktop" layout assumes the window is tall enough
+   (grid + flex children sized to exactly 100vh via min-height:0/flex:1).
+   On shorter windows / lower resolutions / browser zoom, that math
+   doesn't fit and overflow:hidden on html/body + .dashboard just
+   clips content with no way to reach it — only .panel-right (which
+   already has overflow-y:auto) stays scrollable. This switches the
+   whole dashboard to a natural, scrollable layout whenever the
+   viewport height can't comfortably fit it, regardless of width. */
+@media (max-height: 820px) {
+  html, body { overflow-y: auto; overflow-x: hidden; height: auto; }
+
+  .dashboard {
+    position: relative;
+    min-height: 100vh;
+    height: auto;
+    overflow: visible;
+  }
+
+  .panel-left, .panel-right {
+    overflow: visible;
+    min-height: auto;
+  }
+
+  .hero-card { min-height: 130px; }
+  .chart-card { min-height: 240px; }
+  .chart-wrap { min-height: 180px; }
+
+  .bottom-row { height: auto; }
+  .rain-card, .map-card { min-height: 190px; }
+  .weather-map { min-height: 160px; }
+
+  .forecast-section { min-height: 260px; }
+  .forecast-list { max-height: 320px; }
+}
