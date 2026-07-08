@@ -621,38 +621,53 @@ html, body {
   .right-stats { grid-template-columns: 1fr 1fr; gap: 8px; }
 }
 
-/* ─── SHORT VIEWPORT FALLBACK ───
-   The "no-scroll desktop" layout assumes the window is tall enough
-   (grid + flex children sized to exactly 100vh via min-height:0/flex:1).
-   On shorter windows / lower resolutions / browser zoom, that math
-   doesn't fit and overflow:hidden on html/body + .dashboard just
-   clips content with no way to reach it — only .panel-right (which
-   already has overflow-y:auto) stays scrollable. This switches the
-   whole dashboard to a natural, scrollable layout whenever the
-   viewport height can't comfortably fit it, regardless of width. */
-@media (max-height: 820px) {
-  html, body { overflow-y: auto; overflow-x: hidden; height: auto; }
+/* ─── SCROLL-SAFE LAYOUT (applies at all sizes) ───
+   The old "no-scroll desktop" design assumed the window is tall
+   enough that grid + flex children (sized via min-height:0 / flex:1)
+   land exactly at 100vh. Whenever the real window is shorter than
+   that assumption — a slightly smaller monitor, a taskbar, browser
+   zoom, whatever — overflow:hidden on html/body + .dashboard just
+   clips or crushes content (chart-card was flex:1 min-height:0, so
+   it got squeezed toward nothing) with no way to reach it; only
+   .panel-right stayed scrollable. Gating this behind a fixed
+   max-height guess (e.g. 820px) doesn't work either, since "tall
+   enough" depends on the sum of everyone's min-heights, not a magic
+   number. So instead: let the whole dashboard size itself naturally
+   and only scroll the page when content genuinely needs more room
+   than the viewport has. On big/tall screens this changes nothing
+   visually — there's room, so nothing shrinks and no scrollbar
+   appears. */
+html, body { overflow-y: auto; overflow-x: hidden; height: auto; min-height: 100%; }
 
-  .dashboard {
-    position: relative;
-    min-height: 100vh;
-    height: auto;
-    overflow: visible;
+.dashboard {
+  position: relative;
+  inset: auto;
+  min-height: 100vh;
+  height: auto;
+  overflow: visible;
+}
+
+.panel-left, .panel-right {
+  overflow: visible;
+  min-height: auto;
+}
+
+.hero-card { min-height: 150px; }
+.chart-card { flex: 1 1 260px; min-height: 260px; }
+.chart-wrap { min-height: 190px; }
+
+.bottom-row { height: auto; min-height: 190px; }
+.rain-card, .map-card { min-height: 190px; }
+.weather-map { min-height: 160px; }
+
+.forecast-section { min-height: 260px; }
+.forecast-list { max-height: 340px; }
+
+@media (max-width: 900px) {
+  .chart-card, .chart-wrap, .bottom-row, .rain-card, .map-card, .weather-map,
+  .forecast-section, .forecast-list, .hero-card {
+    /* let the existing mobile rules below (grid-template-columns:1fr etc.)
+       keep full control of sizing on narrow screens */
+    min-height: unset;
   }
-
-  .panel-left, .panel-right {
-    overflow: visible;
-    min-height: auto;
-  }
-
-  .hero-card { min-height: 130px; }
-  .chart-card { min-height: 240px; }
-  .chart-wrap { min-height: 180px; }
-
-  .bottom-row { height: auto; }
-  .rain-card, .map-card { min-height: 190px; }
-  .weather-map { min-height: 160px; }
-
-  .forecast-section { min-height: 260px; }
-  .forecast-list { max-height: 320px; }
 }
