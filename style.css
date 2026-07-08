@@ -43,8 +43,10 @@ html, body {
   font-family: 'Inter', system-ui, sans-serif;
   background: var(--bg-deepest);
   color: var(--text);
-  height: 100%;
-  overflow: hidden;   /* NO SCROLL on desktop */
+  min-height: 100%;
+  height: auto;
+  overflow-x: hidden;
+  overflow-y: auto;   /* was "hidden" — this is what blocked scrolling */
   -webkit-font-smoothing: antialiased;
 }
 
@@ -142,7 +144,8 @@ html, body {
 
 /* ─── Dashboard Layout ─── */
 .dashboard {
-  position: fixed; inset: 0;
+  position: relative;
+  min-height: 100vh;
   display: grid;
   grid-template-columns: 1fr 360px;
   gap: var(--panel-gap);
@@ -152,14 +155,14 @@ html, body {
     radial-gradient(ellipse at 80% 100%, rgba(30,80,200,0.06) 0%, transparent 55%),
     linear-gradient(160deg, #080f22 0%, #060d1f 100%);
   z-index: 1;
-  overflow: hidden;
+  overflow: visible;
 }
 
 /* ─── LEFT PANEL ─── */
 .panel-left {
   display: flex; flex-direction: column;
   gap: var(--panel-gap);
-  overflow: hidden; min-height: 0;
+  overflow: visible; min-height: auto;
 }
 
 /* Top Bar */
@@ -242,7 +245,7 @@ html, body {
   overflow: hidden;
   flex-shrink: 0;
   box-shadow: var(--shadow-card), var(--shadow-glow);
-  min-height: 150px;
+  min-height: 220px;
 }
 .hero-bg-overlay {
   position: absolute; inset: 0;
@@ -254,11 +257,11 @@ html, body {
 .hero-content {
   position: relative; z-index: 1;
   display: flex; justify-content: space-between; align-items: flex-start;
-  padding: 18px 22px;
+  padding: 26px 30px;
 }
 .hero-left { flex: 1; }
-.greeting { font-size: .8rem; color: var(--text-muted); font-weight: 500; letter-spacing: .5px; text-transform: uppercase; margin-bottom: 2px; }
-.clock { font-size: 2.8rem; font-weight: 800; letter-spacing: -2px; line-height: 1; color: var(--text); }
+.greeting { font-size: .82rem; color: var(--text-muted); font-weight: 500; letter-spacing: .5px; text-transform: uppercase; margin-bottom: 4px; }
+.clock { font-size: 3.4rem; font-weight: 800; letter-spacing: -2px; line-height: 1; color: var(--text); }
 .hero-date { font-size: .78rem; color: var(--text-muted); margin-top: 4px; margin-bottom: 10px; }
 .hero-divider { width: 32px; height: 2px; background: var(--accent); border-radius: 2px; margin-bottom: 10px; opacity: .6; }
 .forecast-label { font-size: .7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 3px; }
@@ -274,7 +277,7 @@ html, body {
   font-size: .78rem; color: var(--text-muted);
   cursor: default;
 }
-.hero-weather-icon { width: 80px; height: 80px; filter: drop-shadow(0 4px 16px rgba(79,142,247,0.4)); }
+.hero-weather-icon { width: 96px; height: 96px; filter: drop-shadow(0 4px 16px rgba(79,142,247,0.4)); }
 
 /* Chart Card (Hourly) */
 .chart-card {
@@ -282,7 +285,7 @@ html, body {
   border: 1px solid rgba(15,30,61,0.08);
   border-radius: var(--radius-xl);
   padding: 14px 16px 10px;
-  flex: 1; min-height: 0;
+  flex: 1 1 280px; min-height: 280px;
   display: flex; flex-direction: column;
   box-shadow: var(--shadow-card);
 }
@@ -294,14 +297,14 @@ html, body {
 }
 .chart-title { font-size: .85rem; font-weight: 600; color: var(--text); }
 .chart-subtitle { font-size: .75rem; color: var(--text-muted); }
-.chart-wrap { flex: 1; min-height: 0; position: relative; }
+.chart-wrap { flex: 1; min-height: 200px; position: relative; }
 .chart-wrap canvas { width: 100% !important; height: 100% !important; }
 
 /* Bottom Row */
 .bottom-row {
   display: grid; grid-template-columns: 1fr 1fr;
   gap: var(--panel-gap); flex-shrink: 0;
-  height: 190px;
+  height: auto; min-height: 320px;
 }
 
 /* Rain Card */
@@ -619,55 +622,4 @@ html, body {
   .hero-content { flex-direction: column; gap: 12px; }
   .hero-right { flex-direction: row; align-items: center; width: 100%; justify-content: space-between; }
   .right-stats { grid-template-columns: 1fr 1fr; gap: 8px; }
-}
-
-/* ─── SCROLL-SAFE LAYOUT (applies at all sizes) ───
-   The old "no-scroll desktop" design assumed the window is tall
-   enough that grid + flex children (sized via min-height:0 / flex:1)
-   land exactly at 100vh. Whenever the real window is shorter than
-   that assumption — a slightly smaller monitor, a taskbar, browser
-   zoom, whatever — overflow:hidden on html/body + .dashboard just
-   clips or crushes content (chart-card was flex:1 min-height:0, so
-   it got squeezed toward nothing) with no way to reach it; only
-   .panel-right stayed scrollable. Gating this behind a fixed
-   max-height guess (e.g. 820px) doesn't work either, since "tall
-   enough" depends on the sum of everyone's min-heights, not a magic
-   number. So instead: let the whole dashboard size itself naturally
-   and only scroll the page when content genuinely needs more room
-   than the viewport has. On big/tall screens this changes nothing
-   visually — there's room, so nothing shrinks and no scrollbar
-   appears. */
-html, body { overflow-y: auto; overflow-x: hidden; height: auto; min-height: 100%; }
-
-.dashboard {
-  position: relative;
-  inset: auto;
-  min-height: 100vh;
-  height: auto;
-  overflow: visible;
-}
-
-.panel-left, .panel-right {
-  overflow: visible;
-  min-height: auto;
-}
-
-.hero-card { min-height: 150px; }
-.chart-card { flex: 1 1 260px; min-height: 260px; }
-.chart-wrap { min-height: 190px; }
-
-.bottom-row { height: auto; min-height: 190px; }
-.rain-card, .map-card { min-height: 190px; }
-.weather-map { min-height: 160px; }
-
-.forecast-section { min-height: 260px; }
-.forecast-list { max-height: 340px; }
-
-@media (max-width: 900px) {
-  .chart-card, .chart-wrap, .bottom-row, .rain-card, .map-card, .weather-map,
-  .forecast-section, .forecast-list, .hero-card {
-    /* let the existing mobile rules below (grid-template-columns:1fr etc.)
-       keep full control of sizing on narrow screens */
-    min-height: unset;
-  }
 }
