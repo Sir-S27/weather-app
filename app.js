@@ -534,13 +534,13 @@ function renderHourlyChart(forecast) {
       },
       scales: {
         x: {
-          grid: { color: 'rgba(79,142,247,0.06)', drawBorder: false },
-          ticks: { color: 'rgba(232,240,254,0.45)', font: { family: 'Inter', size: 10 } },
+          grid: { color: 'rgba(15,30,61,0.06)', drawBorder: false },
+          ticks: { color: 'rgba(15,30,61,0.55)', font: { family: 'Inter', size: 10 } },
         },
         y: {
-          grid: { color: 'rgba(79,142,247,0.06)', drawBorder: false },
+          grid: { color: 'rgba(15,30,61,0.06)', drawBorder: false },
           ticks: {
-            color: 'rgba(232,240,254,0.45)', font: { family: 'Inter', size: 10 },
+            color: 'rgba(15,30,61,0.55)', font: { family: 'Inter', size: 10 },
             callback: v => `${v}°`,
           },
         },
@@ -610,13 +610,13 @@ function renderRainChart(forecast) {
       scales: {
         x: {
           grid: { display: false },
-          ticks: { color: 'rgba(232,240,254,0.45)', font: { family: 'Inter', size: 9 } },
+          ticks: { color: 'rgba(15,30,61,0.55)', font: { family: 'Inter', size: 9 } },
         },
         y: {
           max: 100, min: 0,
-          grid: { color: 'rgba(79,142,247,0.06)', drawBorder: false },
+          grid: { color: 'rgba(15,30,61,0.06)', drawBorder: false },
           ticks: {
-            color: 'rgba(232,240,254,0.45)', font: { family: 'Inter', size: 9 },
+            color: 'rgba(15,30,61,0.55)', font: { family: 'Inter', size: 9 },
             callback: v => `${v}%`,
             maxTicksLimit: 4,
           },
