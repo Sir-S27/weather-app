@@ -1,6 +1,6 @@
 /* ============================================================
    WeatherVibe – app.js
-   Full-featured weather app with OpenWeatherMap API
+   Dashboard Edition – Vercel Serverless API Key
    ============================================================ */
 
 'use strict';
@@ -8,25 +8,27 @@
 // ─────────────────────────────────────────────────────────────
 //  CONFIG
 // ─────────────────────────────────────────────────────────────
-const OWM_BASE = 'https://api.openweathermap.org/data/2.5';
-const OWM_GEO = 'https://api.openweathermap.org/geo/1.0';
-const ICON_BASE = 'https://openweathermap.org/img/wn';
-const STORAGE_KEY_API = 'wv_api_key';
+const OWM_BASE    = 'https://api.openweathermap.org/data/2.5';
+const OWM_GEO     = 'https://api.openweathermap.org/geo/1.0';
+const ICON_BASE   = 'https://openweathermap.org/img/wn';
 const STORAGE_KEY_UNIT = 'wv_unit';
 
 // ─────────────────────────────────────────────────────────────
 //  STATE
 // ─────────────────────────────────────────────────────────────
 let state = {
-  apiKey: localStorage.getItem(STORAGE_KEY_API) || '',
-  unit: localStorage.getItem(STORAGE_KEY_UNIT) || 'metric',  // metric | imperial
-  lastCity: '',
-  tempChart: null,
-  // Map state
-  leafletMap: null,
+  apiKey:        '',
+  unit:          localStorage.getItem(STORAGE_KEY_UNIT) || 'metric',
+  lastCity:      '',
+  hourlyChart:   null,
+  rainChart:     null,
+  leafletMap:    null,
   leafletMarker: null,
-  currentLayer: null,
-  lastCoords: null,   // { lat, lon }
+  currentLayer:  null,
+  activeLayerKey:'dark',
+  lastCoords:    null,
+  clockInterval: null,
+  currentData:   null,
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -34,50 +36,70 @@ let state = {
 // ─────────────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
 const dom = {
-  cityInput: $('city-input'),
-  searchBtn: $('search-btn'),
-  gpsBtn: $('gps-btn'),
-  unitToggle: $('unit-toggle'),
-  suggestions: $('suggestions'),
-  apiNotice: $('api-notice'),
-  apiKeyInput: $('api-key-input'),
-  saveApiBtn: $('save-api-btn'),
-  closeApiBtn: $('close-api-notice'),
-  mainContent: $('main-content'),
-  loading: $('loading-screen'),
-  errorCard: $('error-card'),
-  errorMsg: $('error-msg'),
-  retryBtn: $('retry-btn'),
-  emptyState: $('empty-state'),
-  particles: $('weather-particles'),
+  // screens
+  loadingScreen: $('loading-screen'),
+  errorScreen:   $('error-screen'),
+  errorTitle:    $('error-title'),
+  errorMsg:      $('error-msg'),
+  retryBtn:      $('retry-btn'),
+  dashboard:     $('dashboard'),
 
-  // current
-  cityName: $('city-name'),
-  countryDate: $('country-date'),
-  weatherIcon: $('weather-icon'),
-  mainTemp: $('main-temp'),
-  tempUnitSym: $('temp-unit-symbol'),
-  weatherDesc: $('weather-desc'),
-  feelsLike: $('feels-like'),
-  humidity: $('humidity'),
-  windSpeed: $('wind-speed'),
-  visibility: $('visibility'),
-  pressure: $('pressure'),
-  sunrise: $('sunrise'),
-  sunset: $('sunset'),
+  // top bar
+  cityInput:     $('city-input'),
+  gpsBtn:        $('gps-btn'),
+  unitToggle:    $('unit-toggle'),
+  suggestions:   $('suggestions'),
 
-  // sections
-  forecastGrid: $('forecast-grid'),
-  hourlyScroll: $('hourly-scroll'),
-  tempChart: $('temp-chart'),
+  // hero
+  greeting:      $('greeting'),
+  clock:         $('clock'),
+  heroDate:      $('hero-date'),
+  heroCity:      $('hero-city'),
+  heroIcon:      $('hero-icon'),
+  heroDesc:      $('hero-weather-desc'),
+  heroSubDesc:   $('hero-sub-desc'),
+  chartCityLabel:$('chart-city-label'),
 
-  // map & location
-  weatherMap: $('weather-map'),
-  locFullAddr: $('loc-full-address'),
-  locDistrict: $('loc-district'),
-  locCity: $('loc-city'),
-  locState: $('loc-state'),
-  locCoords: $('loc-coords'),
+  // right panel
+  rightIcon:     $('right-icon'),
+  rightTemp:     $('right-temp'),
+  tempUnitSym:   $('temp-unit-symbol'),
+  rightDesc:     $('right-desc'),
+  rightFeels:    $('right-feels'),
+  statWind:      $('stat-wind'),
+  statHumidity:  $('stat-humidity'),
+  statPressure:  $('stat-pressure'),
+  statVisibility:$('stat-visibility'),
+
+  // forecast
+  forecastList:  $('forecast-list'),
+  sunPanel:      $('sun-panel'),
+  sunRise:       $('sun-rise'),
+  sunSet:        $('sun-set'),
+
+  // charts
+  hourlyChart:   $('hourly-chart'),
+  rainChart:     $('rain-chart'),
+
+  // map
+  weatherMap:    $('weather-map'),
+
+  // nav
+  navSearch:     $('nav-search'),
+  navGps:        $('nav-gps'),
+  navUnit:       $('nav-unit'),
+  navInfo:       $('nav-info'),
+
+  // info modal
+  infoModal:     $('info-modal'),
+  closeModal:    $('close-modal'),
+  infoCity:      $('info-city'),
+  infoCountry:   $('info-country'),
+  infoCoords:    $('info-coords'),
+  infoPressure:  $('info-pressure'),
+
+  // particles
+  particles:     $('weather-particles'),
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -85,35 +107,104 @@ const dom = {
 // ─────────────────────────────────────────────────────────────
 async function init() {
   applyUnit();
-  dom.apiNotice.classList.add('hidden');
+  startClock();
+  bindEvents();
+  startParticles('default');
 
-  // Ambil API key dari Netlify function
+  // Fetch API key from Vercel serverless function
   try {
-    const res = await fetch('/.netlify/functions/apikey');
+    const res  = await fetch('/api/apikey');
     const data = await res.json();
     if (data.key) {
       state.apiKey = data.key;
-      localStorage.setItem(STORAGE_KEY_API, data.key);
+    } else {
+      throw new Error('API key tidak ditemukan di server.');
     }
   } catch (e) {
-    console.warn('Gagal ambil API key:', e);
+    // Fallback: try localStorage (for local dev with manually set key)
+    const stored = localStorage.getItem('wv_api_key_fallback');
+    if (stored) {
+      state.apiKey = stored;
+      console.info('Menggunakan API key dari localStorage (dev mode).');
+    } else {
+      showError(
+        'Konfigurasi Server Bermasalah',
+        'Tidak dapat mengambil API key dari server. Pastikan environment variable OWM_API_KEY sudah diset di Vercel.'
+      );
+      return;
+    }
   }
 
-  // Event listeners
-  dom.searchBtn.addEventListener('click', handleSearch);
+  // Auto-detect location on load
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      pos => fetchWeatherByCoords(pos.coords.latitude, pos.coords.longitude),
+      () => fetchWeather('Jakarta') // default city
+    );
+  } else {
+    fetchWeather('Jakarta');
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+//  EVENTS
+// ─────────────────────────────────────────────────────────────
+function bindEvents() {
+  // Search
   dom.cityInput.addEventListener('keydown', e => { if (e.key === 'Enter') handleSearch(); });
   dom.cityInput.addEventListener('input', debounce(handleInputSuggest, 400));
   dom.gpsBtn.addEventListener('click', handleGPS);
   dom.unitToggle.addEventListener('click', toggleUnit);
-  dom.saveApiBtn.addEventListener('click', saveApiKey);
-  dom.closeApiBtn.addEventListener('click', () => dom.apiNotice.classList.add('hidden'));
-  dom.retryBtn.addEventListener('click', () => { if (state.lastCity) fetchWeather(state.lastCity); });
+  dom.retryBtn.addEventListener('click', () => {
+    if (state.lastCity) fetchWeather(state.lastCity);
+    else init();
+  });
 
-  // Quick city chips
-  document.querySelectorAll('.city-chip').forEach(btn => {
+  // Bottom nav
+  dom.navSearch.addEventListener('click', () => {
+    dom.cityInput.focus();
+    setActiveNav(dom.navSearch);
+  });
+  dom.navGps.addEventListener('click', () => {
+    handleGPS();
+    setActiveNav(dom.navGps);
+  });
+  dom.navUnit.addEventListener('click', () => {
+    toggleUnit();
+    setActiveNav(dom.navUnit);
+    setTimeout(() => setActiveNav(dom.navSearch), 400);
+  });
+  dom.navInfo.addEventListener('click', () => {
+    dom.infoModal.classList.toggle('hidden');
+    setActiveNav(dom.navInfo);
+  });
+  dom.closeModal.addEventListener('click', () => dom.infoModal.classList.add('hidden'));
+  dom.infoModal.addEventListener('click', e => {
+    if (e.target === dom.infoModal) dom.infoModal.classList.add('hidden');
+  });
+
+  // Map layer buttons
+  document.querySelectorAll('.map-ctrl-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      dom.cityInput.value = btn.dataset.city;
-      handleSearch();
+      document.querySelectorAll('.map-ctrl-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      switchMapLayer(btn.dataset.layer);
+    });
+  });
+
+  // Forecast tabs
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const tab = btn.dataset.tab;
+      if (tab === 'sunrise') {
+        dom.forecastList.classList.add('hidden');
+        dom.sunPanel.classList.remove('hidden');
+      } else {
+        dom.forecastList.classList.remove('hidden');
+        dom.sunPanel.classList.add('hidden');
+      }
     });
   });
 
@@ -123,28 +214,39 @@ async function init() {
       dom.suggestions.classList.add('hidden');
     }
   });
+}
 
-  startParticles('default');
+function setActiveNav(btn) {
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
 }
 
 // ─────────────────────────────────────────────────────────────
-//  API KEY MANAGEMENT
+//  LIVE CLOCK & GREETING
 // ─────────────────────────────────────────────────────────────
-function showApiNotice() {
-  dom.apiNotice.classList.remove('hidden');
+function startClock() {
+  updateClock();
+  state.clockInterval = setInterval(updateClock, 1000);
 }
 
-function saveApiKey() {
-  const key = dom.apiKeyInput.value.trim();
-  if (!key) {
-    dom.apiKeyInput.style.borderColor = '#ef4444';
-    setTimeout(() => dom.apiKeyInput.style.borderColor = '', 1500);
-    return;
-  }
-  state.apiKey = key;
-  localStorage.setItem(STORAGE_KEY_API, key);
-  dom.apiNotice.classList.add('hidden');
-  showToast('✅ API Key tersimpan! Silakan cari kota.');
+function updateClock() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2, '0');
+  const m = String(now.getMinutes()).padStart(2, '0');
+  dom.clock.textContent = `${h}:${m}`;
+
+  // Greeting
+  const hour = now.getHours();
+  let greet = 'Selamat Malam';
+  if (hour >= 5  && hour < 12) greet = 'Selamat Pagi';
+  else if (hour >= 12 && hour < 15) greet = 'Selamat Siang';
+  else if (hour >= 15 && hour < 18) greet = 'Selamat Sore';
+  dom.greeting.textContent = greet;
+
+  // Date
+  dom.heroDate.textContent = now.toLocaleDateString('id-ID', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+  });
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -170,21 +272,11 @@ function handleSearch() {
   const city = dom.cityInput.value.trim();
   if (!city) return;
   dom.suggestions.classList.add('hidden');
-  if (!checkApiKey()) return;
   fetchWeather(city);
 }
 
-function checkApiKey() {
-  if (!state.apiKey) {
-    showApiNotice();
-    showToast('⚠️ Masukkan API key dulu!');
-    return false;
-  }
-  return true;
-}
-
 // ─────────────────────────────────────────────────────────────
-//  AUTOCOMPLETE SUGGESTIONS
+//  AUTOCOMPLETE
 // ─────────────────────────────────────────────────────────────
 async function handleInputSuggest() {
   const q = dom.cityInput.value.trim();
@@ -193,7 +285,7 @@ async function handleInputSuggest() {
     return;
   }
   try {
-    const res = await fetch(`${OWM_GEO}/direct?q=${encodeURIComponent(q)}&limit=5&appid=${state.apiKey}`);
+    const res  = await fetch(`${OWM_GEO}/direct?q=${encodeURIComponent(q)}&limit=5&appid=${state.apiKey}`);
     const data = await res.json();
     if (!Array.isArray(data) || data.length === 0) {
       dom.suggestions.classList.add('hidden');
@@ -222,24 +314,19 @@ function renderSuggestions(cities) {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  GPS LOCATION
+//  GPS
 // ─────────────────────────────────────────────────────────────
 function handleGPS() {
-  if (!checkApiKey()) return;
-  if (!navigator.geolocation) {
-    showToast('❌ Browser tidak mendukung GPS');
-    return;
-  }
+  if (!navigator.geolocation) { showToast('❌ Browser tidak mendukung GPS'); return; }
   dom.gpsBtn.classList.add('loading');
   navigator.geolocation.getCurrentPosition(
     async pos => {
       dom.gpsBtn.classList.remove('loading');
-      const { latitude: lat, longitude: lon } = pos.coords;
-      await fetchWeatherByCoords(lat, lon);
+      await fetchWeatherByCoords(pos.coords.latitude, pos.coords.longitude);
     },
-    err => {
+    () => {
       dom.gpsBtn.classList.remove('loading');
-      showToast('❌ Izin lokasi ditolak atau gagal');
+      showToast('❌ Izin lokasi ditolak');
     }
   );
 }
@@ -251,156 +338,221 @@ async function fetchWeather(city) {
   state.lastCity = city;
   showLoading();
   try {
-    const units = state.unit;
-    const [currentRes, forecastRes] = await Promise.all([
-      fetch(`${OWM_BASE}/weather?q=${encodeURIComponent(city)}&units=${units}&lang=id&appid=${state.apiKey}`),
-      fetch(`${OWM_BASE}/forecast?q=${encodeURIComponent(city)}&units=${units}&lang=id&cnt=40&appid=${state.apiKey}`),
+    const u = state.unit;
+    const [curRes, fcRes] = await Promise.all([
+      fetch(`${OWM_BASE}/weather?q=${encodeURIComponent(city)}&units=${u}&lang=id&appid=${state.apiKey}`),
+      fetch(`${OWM_BASE}/forecast?q=${encodeURIComponent(city)}&units=${u}&lang=id&cnt=40&appid=${state.apiKey}`),
     ]);
-
-    if (!currentRes.ok) {
-      const err = await currentRes.json();
+    if (!curRes.ok) {
+      const err = await curRes.json();
       throw new Error(err.message || 'Kota tidak ditemukan');
     }
-
-    const current = await currentRes.json();
-    const forecast = await forecastRes.json();
-
+    const current  = await curRes.json();
+    const forecast = await fcRes.json();
     renderAll(current, forecast);
   } catch (err) {
-    showError(err.message);
+    showError('Gagal Memuat Data', err.message || 'Terjadi kesalahan. Coba lagi.');
   }
 }
 
 async function fetchWeatherByCoords(lat, lon) {
-  state.lastCity = `${lat},${lon}`;
   showLoading();
   try {
-    const units = state.unit;
-    const [currentRes, forecastRes] = await Promise.all([
-      fetch(`${OWM_BASE}/weather?lat=${lat}&lon=${lon}&units=${units}&lang=id&appid=${state.apiKey}`),
-      fetch(`${OWM_BASE}/forecast?lat=${lat}&lon=${lon}&units=${units}&lang=id&cnt=40&appid=${state.apiKey}`),
+    const u = state.unit;
+    const [curRes, fcRes] = await Promise.all([
+      fetch(`${OWM_BASE}/weather?lat=${lat}&lon=${lon}&units=${u}&lang=id&appid=${state.apiKey}`),
+      fetch(`${OWM_BASE}/forecast?lat=${lat}&lon=${lon}&units=${u}&lang=id&cnt=40&appid=${state.apiKey}`),
     ]);
-
-    if (!currentRes.ok) throw new Error('Gagal mengambil data lokasi');
-
-    const current = await currentRes.json();
-    const forecast = await forecastRes.json();
-
+    if (!curRes.ok) throw new Error('Gagal mengambil data lokasi');
+    const current  = await curRes.json();
+    const forecast = await fcRes.json();
     state.lastCity = current.name;
     renderAll(current, forecast);
   } catch (err) {
-    showError(err.message);
+    showError('Gagal Memuat Data', err.message || 'Terjadi kesalahan.');
   }
 }
 
 // ─────────────────────────────────────────────────────────────
-//  RENDER
+//  RENDER ALL
 // ─────────────────────────────────────────────────────────────
 function renderAll(current, forecast) {
-  renderCurrent(current);
-  renderForecast(forecast);
-  renderHourly(forecast);
-  renderChart(forecast);
+  state.currentData = current;
+  renderHero(current);
+  renderRightPanel(current);
+  renderForecastList(forecast);
+  renderHourlyChart(forecast);
+  renderRainChart(forecast);
+  renderInfoModal(current);
   triggerWeatherAnimation(current.weather[0].main);
-  // Map
   const lat = current.coord.lat;
   const lon = current.coord.lon;
   state.lastCoords = { lat, lon };
   updateMap(lat, lon, current);
-  fetchReverseGeocode(lat, lon);
-  // Setup map layer buttons
-  initMapLayerControls();
-  showMain();
+  showDashboard();
 }
 
-function renderCurrent(d) {
+// ─────────────────────────────────────────────────────────────
+//  RENDER HERO (left panel top card)
+// ─────────────────────────────────────────────────────────────
+function renderHero(d) {
+  const unitSym = state.unit === 'metric' ? 'C' : 'F';
+  dom.heroCity.textContent  = `${d.name}, ${d.sys.country}`;
+  dom.heroIcon.src          = `${ICON_BASE}/${d.weather[0].icon}@2x.png`;
+  dom.heroDesc.textContent  = capitalise(d.weather[0].description);
+  dom.heroSubDesc.textContent = `Terasa seperti ${Math.round(d.main.feels_like)}°${unitSym} · Kelembaban ${d.main.humidity}%`;
+  dom.chartCityLabel.textContent = `${d.name}`;
+}
+
+// ─────────────────────────────────────────────────────────────
+//  RENDER RIGHT PANEL
+// ─────────────────────────────────────────────────────────────
+function renderRightPanel(d) {
   const unitSym = state.unit === 'metric' ? 'C' : 'F';
   const windUnit = state.unit === 'metric' ? 'km/h' : 'mph';
-  const windVal = state.unit === 'metric'
+  const windVal  = state.unit === 'metric'
     ? Math.round(d.wind.speed * 3.6)
     : Math.round(d.wind.speed);
 
-  dom.cityName.textContent = d.name;
-  dom.countryDate.textContent = `${d.sys.country} · ${formatDate(new Date())}`;
-  dom.weatherIcon.src = `${ICON_BASE}/${d.weather[0].icon}@2x.png`;
-  dom.weatherIcon.alt = d.weather[0].description;
-  dom.mainTemp.textContent = Math.round(d.main.temp);
+  dom.rightIcon.src          = `${ICON_BASE}/${d.weather[0].icon}@2x.png`;
+  // Update temp number without destroying the unit <span> inside
+  // Structure: <div id="right-temp">NUMBER<span class="right-unit">...</span></div>
+  const tempNum = dom.rightTemp.firstChild;
+  if (tempNum && tempNum.nodeType === Node.TEXT_NODE) {
+    tempNum.nodeValue = Math.round(d.main.temp);
+  } else {
+    dom.rightTemp.insertBefore(document.createTextNode(Math.round(d.main.temp)), dom.rightTemp.firstChild);
+  }
   dom.tempUnitSym.textContent = unitSym;
-  dom.weatherDesc.textContent = d.weather[0].description;
-  dom.feelsLike.textContent = `Terasa seperti ${Math.round(d.main.feels_like)}°${unitSym}`;
-  dom.humidity.textContent = `${d.main.humidity}%`;
-  dom.windSpeed.textContent = `${windVal} ${windUnit}`;
-  dom.visibility.textContent = d.visibility ? `${(d.visibility / 1000).toFixed(1)} km` : '—';
-  dom.pressure.textContent = `${d.main.pressure} hPa`;
-  dom.sunrise.textContent = formatTime(d.sys.sunrise, d.timezone);
-  dom.sunset.textContent = formatTime(d.sys.sunset, d.timezone);
+  dom.rightDesc.textContent  = capitalise(d.weather[0].description);
+  dom.rightFeels.textContent = `Terasa seperti ${Math.round(d.main.feels_like)}°${unitSym}`;
+  dom.statWind.textContent   = `${windVal} ${windUnit}`;
+  dom.statHumidity.textContent = `${d.main.humidity}%`;
+  dom.statPressure.textContent = `${d.main.pressure} hPa`;
+  dom.statVisibility.textContent = d.visibility ? `${(d.visibility / 1000).toFixed(1)} km` : '—';
+  dom.sunRise.textContent    = formatTime(d.sys.sunrise, d.timezone);
+  dom.sunSet.textContent     = formatTime(d.sys.sunset, d.timezone);
 }
 
-function renderForecast(forecast) {
-  // Group by day (pick midday slot or first of each day)
+// ─────────────────────────────────────────────────────────────
+//  RENDER FORECAST LIST
+// ─────────────────────────────────────────────────────────────
+function renderForecastList(forecast) {
+  const unitSym = state.unit === 'metric' ? 'C' : 'F';
   const dailyMap = {};
+
   forecast.list.forEach(item => {
-    const date = new Date(item.dt * 1000);
-    const dayKey = date.toLocaleDateString('id-ID', { weekday: 'short' });
-    const dateKey = date.toDateString();
-    if (!dailyMap[dateKey]) {
-      dailyMap[dateKey] = { dayKey, items: [] };
-    }
-    dailyMap[dateKey].items.push(item);
+    const dateKey = new Date(item.dt * 1000).toDateString();
+    if (!dailyMap[dateKey]) dailyMap[dateKey] = [];
+    dailyMap[dateKey].push(item);
   });
 
-  const days = Object.values(dailyMap).slice(0, 5);
-  const unitSym = state.unit === 'metric' ? 'C' : 'F';
+  const days = Object.entries(dailyMap).slice(0, 5);
+  dom.forecastList.innerHTML = '';
 
-  dom.forecastGrid.innerHTML = '';
-  days.forEach((day, idx) => {
-    const temps = day.items.map(i => i.main.temp);
-    const maxT = Math.round(Math.max(...temps));
-    const minT = Math.round(Math.min(...temps));
-    const midItem = day.items[Math.floor(day.items.length / 2)];
-    const icon = midItem.weather[0].icon;
-    const pop = Math.round((midItem.pop || 0) * 100);
+  days.forEach(([dateKey, items]) => {
+    const d      = new Date(dateKey);
+    const dayStr = d.toLocaleDateString('id-ID', { weekday: 'short' });
+    const dateStr= d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+    const temps  = items.map(i => i.main.temp);
+    const maxT   = Math.round(Math.max(...temps));
+    const minT   = Math.round(Math.min(...temps));
+    const mid    = items[Math.floor(items.length / 2)];
+    const pop    = Math.round((mid.pop || 0) * 100);
 
-    const card = document.createElement('div');
-    card.className = 'forecast-card';
-    card.style.animationDelay = `${idx * 0.07}s`;
-    card.innerHTML = `
-      <span class="forecast-day">${day.dayKey}</span>
-      <img class="forecast-icon" src="${ICON_BASE}/${icon}@2x.png" alt="icon" />
-      <span class="forecast-temp-max">${maxT}°${unitSym}</span>
-      <span class="forecast-temp-min">${minT}°${unitSym}</span>
-      ${pop > 0 ? `<span class="forecast-rain">💧 ${pop}%</span>` : ''}
+    const row = document.createElement('div');
+    row.className = 'forecast-row';
+    row.innerHTML = `
+      <span class="forecast-day">${dayStr}</span>
+      <img class="forecast-row-icon" src="${ICON_BASE}/${mid.weather[0].icon}@2x.png" alt="${mid.weather[0].description}" />
+      <div class="forecast-row-info">
+        <span class="forecast-row-desc">${mid.weather[0].description}</span>
+        ${pop > 0 ? `<span class="forecast-row-pop">💧 ${pop}%</span>` : ''}
+      </div>
+      <div class="forecast-temps">
+        <span class="forecast-max">${maxT}°${unitSym}</span>
+        <span class="forecast-min">${minT}°${unitSym}</span>
+      </div>
     `;
-    dom.forecastGrid.appendChild(card);
+    dom.forecastList.appendChild(row);
   });
 }
 
-function renderHourly(forecast) {
-  dom.hourlyScroll.innerHTML = '';
-  const unitSym = state.unit === 'metric' ? 'C' : 'F';
-  const now = new Date();
-
-  forecast.list.slice(0, 8).forEach((item, idx) => {
-    const date = new Date(item.dt * 1000);
-    const isNow = idx === 0;
-    const card = document.createElement('div');
-    card.className = `hourly-card${isNow ? ' current-hour' : ''}`;
-    card.innerHTML = `
-      <span class="hourly-time">${isNow ? 'Sekarang' : formatHour(date)}</span>
-      <img class="hourly-icon" src="${ICON_BASE}/${item.weather[0].icon}@2x.png" alt="icon" />
-      <span class="hourly-temp">${Math.round(item.main.temp)}°${unitSym}</span>
-    `;
-    dom.hourlyScroll.appendChild(card);
-  });
-}
-
-function renderChart(forecast) {
+// ─────────────────────────────────────────────────────────────
+//  RENDER HOURLY CHART
+// ─────────────────────────────────────────────────────────────
+function renderHourlyChart(forecast) {
   const unitSym = state.unit === 'metric' ? '°C' : '°F';
-  const labels = [];
-  const maxTemps = [];
-  const minTemps = [];
-  const popArr = [];
+  const items   = forecast.list.slice(0, 8);
+  const labels  = items.map(i => formatHour(new Date(i.dt * 1000)));
+  const temps   = items.map(i => Math.round(i.main.temp));
 
+  if (state.hourlyChart) state.hourlyChart.destroy();
+
+  const ctx  = dom.hourlyChart.getContext('2d');
+  const grad = ctx.createLinearGradient(0, 0, 0, 180);
+  grad.addColorStop(0, 'rgba(79, 142, 247, 0.35)');
+  grad.addColorStop(1, 'rgba(79, 142, 247, 0)');
+
+  state.hourlyChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: `Suhu (${unitSym})`,
+        data: temps,
+        borderColor: '#4f8ef7',
+        backgroundColor: grad,
+        pointBackgroundColor: '#4f8ef7',
+        pointBorderColor: '#fff',
+        pointBorderWidth: 1.5,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        tension: 0.4,
+        fill: true,
+        borderWidth: 2,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#0f1e3d',
+          borderColor: 'rgba(79,142,247,0.4)',
+          borderWidth: 1,
+          titleColor: '#e8f0fe',
+          bodyColor: 'rgba(232,240,254,0.7)',
+          padding: 10,
+          cornerRadius: 10,
+          callbacks: {
+            label: ctx => ` ${ctx.parsed.y}${unitSym}`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(79,142,247,0.06)', drawBorder: false },
+          ticks: { color: 'rgba(232,240,254,0.45)', font: { family: 'Inter', size: 10 } },
+        },
+        y: {
+          grid: { color: 'rgba(79,142,247,0.06)', drawBorder: false },
+          ticks: {
+            color: 'rgba(232,240,254,0.45)', font: { family: 'Inter', size: 10 },
+            callback: v => `${v}°`,
+          },
+        },
+      },
+    },
+  });
+}
+
+// ─────────────────────────────────────────────────────────────
+//  RENDER RAIN CHART (5-day forecast bar chart)
+// ─────────────────────────────────────────────────────────────
+function renderRainChart(forecast) {
   const dailyMap = {};
   forecast.list.forEach(item => {
     const dateKey = new Date(item.dt * 1000).toDateString();
@@ -408,112 +560,65 @@ function renderChart(forecast) {
     dailyMap[dateKey].push(item);
   });
 
-  Object.entries(dailyMap).slice(0, 5).forEach(([dateKey, items]) => {
-    const d = new Date(dateKey);
-    labels.push(d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric' }));
-    maxTemps.push(Math.round(Math.max(...items.map(i => i.main.temp_max))));
-    minTemps.push(Math.round(Math.min(...items.map(i => i.main.temp_min))));
-    popArr.push(Math.round(Math.max(...items.map(i => (i.pop || 0) * 100))));
+  const days    = Object.entries(dailyMap).slice(0, 5);
+  const labels  = days.map(([key]) => {
+    const d = new Date(key);
+    return d.toLocaleDateString('id-ID', { weekday: 'short' });
   });
+  const popVals = days.map(([, items]) =>
+    Math.round(Math.max(...items.map(i => (i.pop || 0) * 100)))
+  );
 
-  if (state.tempChart) state.tempChart.destroy();
+  if (state.rainChart) state.rainChart.destroy();
 
-  const ctx = dom.tempChart.getContext('2d');
-  const gradMax = ctx.createLinearGradient(0, 0, 0, 220);
-  gradMax.addColorStop(0, 'rgba(108,99,255,0.7)');
-  gradMax.addColorStop(1, 'rgba(108,99,255,0)');
-
-  const gradMin = ctx.createLinearGradient(0, 0, 0, 220);
-  gradMin.addColorStop(0, 'rgba(72,207,173,0.5)');
-  gradMin.addColorStop(1, 'rgba(72,207,173,0)');
-
-  state.tempChart = new Chart(ctx, {
+  const ctx = dom.rainChart.getContext('2d');
+  state.rainChart = new Chart(ctx, {
+    type: 'bar',
     data: {
       labels,
-      datasets: [
-        {
-          type: 'line',
-          label: `Suhu Maks (${unitSym})`,
-          data: maxTemps,
-          borderColor: '#a78bfa',
-          backgroundColor: gradMax,
-          pointBackgroundColor: '#a78bfa',
-          pointRadius: 5,
-          pointHoverRadius: 7,
-          tension: 0.4,
-          fill: true,
-          yAxisID: 'y',
+      datasets: [{
+        label: 'Peluang Hujan (%)',
+        data: popVals,
+        backgroundColor: ctx => {
+          const v = ctx.parsed ? ctx.parsed.y : 0;
+          if (v >= 70) return 'rgba(79,142,247,0.8)';
+          if (v >= 40) return 'rgba(79,142,247,0.55)';
+          return 'rgba(79,142,247,0.3)';
         },
-        {
-          type: 'line',
-          label: `Suhu Min (${unitSym})`,
-          data: minTemps,
-          borderColor: '#48cfad',
-          backgroundColor: gradMin,
-          pointBackgroundColor: '#48cfad',
-          pointRadius: 5,
-          pointHoverRadius: 7,
-          tension: 0.4,
-          fill: true,
-          yAxisID: 'y',
-        },
-        {
-          type: 'bar',
-          label: 'Peluang Hujan (%)',
-          data: popArr,
-          backgroundColor: 'rgba(96,165,250,0.3)',
-          borderColor: 'rgba(96,165,250,0.7)',
-          borderWidth: 1,
-          borderRadius: 6,
-          yAxisID: 'y1',
-        },
-      ],
+        borderRadius: 6,
+        borderSkipped: false,
+      }],
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: {
-          labels: {
-            color: 'rgba(232,234,246,0.7)',
-            font: { family: 'Inter', size: 11 },
-            boxWidth: 12,
-          },
-        },
+        legend: { display: false },
         tooltip: {
-          backgroundColor: 'rgba(15,12,41,0.95)',
-          borderColor: 'rgba(108,99,255,0.4)',
+          backgroundColor: '#0f1e3d',
+          borderColor: 'rgba(79,142,247,0.4)',
           borderWidth: 1,
-          titleColor: '#e8eaf6',
-          bodyColor: 'rgba(232,234,246,0.75)',
-          padding: 12,
-          cornerRadius: 10,
+          titleColor: '#e8f0fe',
+          bodyColor: 'rgba(232,240,254,0.7)',
+          padding: 8,
+          cornerRadius: 8,
+          callbacks: {
+            label: ctx => ` ${ctx.parsed.y}% kemungkinan hujan`,
+          },
         },
       },
       scales: {
         x: {
-          grid: { color: 'rgba(255,255,255,0.05)' },
-          ticks: { color: 'rgba(232,234,246,0.55)', font: { family: 'Inter', size: 11 } },
+          grid: { display: false },
+          ticks: { color: 'rgba(232,240,254,0.45)', font: { family: 'Inter', size: 9 } },
         },
         y: {
-          position: 'left',
-          grid: { color: 'rgba(255,255,255,0.05)' },
+          max: 100, min: 0,
+          grid: { color: 'rgba(79,142,247,0.06)', drawBorder: false },
           ticks: {
-            color: 'rgba(232,234,246,0.55)',
-            font: { family: 'Inter', size: 11 },
-            callback: v => `${v}°`,
-          },
-        },
-        y1: {
-          position: 'right',
-          max: 100,
-          min: 0,
-          grid: { drawOnChartArea: false },
-          ticks: {
-            color: 'rgba(96,165,250,0.6)',
-            font: { family: 'Inter', size: 11 },
+            color: 'rgba(232,240,254,0.45)', font: { family: 'Inter', size: 9 },
             callback: v => `${v}%`,
+            maxTicksLimit: 4,
           },
         },
       },
@@ -522,69 +627,64 @@ function renderChart(forecast) {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  WEATHER ANIMATIONS (rain / snow / sunny particles)
+//  RENDER INFO MODAL
+// ─────────────────────────────────────────────────────────────
+function renderInfoModal(d) {
+  dom.infoCity.textContent    = d.name;
+  dom.infoCountry.textContent = d.sys.country;
+  dom.infoCoords.textContent  = `${d.coord.lat.toFixed(4)}°, ${d.coord.lon.toFixed(4)}°`;
+  dom.infoPressure.textContent= `${d.main.pressure} hPa`;
+}
+
+// ─────────────────────────────────────────────────────────────
+//  WEATHER ANIMATIONS
 // ─────────────────────────────────────────────────────────────
 function triggerWeatherAnimation(main) {
-  // clear existing
   dom.particles.innerHTML = '';
-
-  const condition = main.toLowerCase();
-
-  if (condition.includes('rain') || condition.includes('drizzle') || condition.includes('thunderstorm')) {
+  const c = main.toLowerCase();
+  if (c.includes('rain') || c.includes('drizzle') || c.includes('thunderstorm')) {
     startRain();
-  } else if (condition.includes('snow')) {
+  } else if (c.includes('snow')) {
     startSnow();
-  } else if (condition.includes('clear')) {
+  } else if (c.includes('clear')) {
     startSunnyParticles();
-  } else if (condition.includes('cloud') || condition.includes('mist') || condition.includes('fog')) {
-    startCloudParticles();
   } else {
     startParticles('default');
   }
 }
 
 function startRain() {
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 50; i++) {
     const drop = document.createElement('div');
     drop.className = 'raindrop';
-    drop.style.left = `${Math.random() * 100}vw`;
-    drop.style.height = `${10 + Math.random() * 20}px`;
+    drop.style.left     = `${Math.random() * 100}vw`;
+    drop.style.height   = `${12 + Math.random() * 18}px`;
     drop.style.animationDuration = `${0.4 + Math.random() * 0.6}s`;
-    drop.style.animationDelay = `${Math.random() * 2}s`;
+    drop.style.animationDelay   = `${Math.random() * 2}s`;
     dom.particles.appendChild(drop);
   }
 }
 
 function startSnow() {
-  const flakes = ['❄', '❅', '❆', '✦'];
-  for (let i = 0; i < 35; i++) {
+  const flakes = ['❄','❅','❆'];
+  for (let i = 0; i < 30; i++) {
     const flake = document.createElement('div');
     flake.className = 'snowflake';
     flake.textContent = flakes[Math.floor(Math.random() * flakes.length)];
-    flake.style.left = `${Math.random() * 100}vw`;
-    flake.style.fontSize = `${0.8 + Math.random() * 1.2}rem`;
-    flake.style.animationDuration = `${3 + Math.random() * 5}s`;
-    flake.style.animationDelay = `${Math.random() * 5}s`;
+    flake.style.left     = `${Math.random() * 100}vw`;
+    flake.style.fontSize = `${0.6 + Math.random() * 1}rem`;
+    flake.style.animationDuration = `${4 + Math.random() * 5}s`;
+    flake.style.animationDelay   = `${Math.random() * 5}s`;
     dom.particles.appendChild(flake);
   }
 }
 
 function startSunnyParticles() {
-  for (let i = 0; i < 20; i++) {
-    createParticle('#f7b733', 4, 8, 6, 14);
-  }
+  for (let i = 0; i < 16; i++) createParticle('#fbbf24', 3, 6, 8, 16);
 }
 
-function startCloudParticles() {
-  for (let i = 0; i < 15; i++) {
-    createParticle('rgba(200,210,240,0.6)', 6, 12, 8, 18);
-  }
-}
-
-function startParticles(type) {
-  for (let i = 0; i < 18; i++) {
-    createParticle('rgba(108,99,255,0.4)', 3, 7, 8, 20);
-  }
+function startParticles() {
+  for (let i = 0; i < 16; i++) createParticle('rgba(79,142,247,0.4)', 2, 5, 10, 22);
 }
 
 function createParticle(color, minR, maxR, minDur, maxDur) {
@@ -592,70 +692,55 @@ function createParticle(color, minR, maxR, minDur, maxDur) {
   p.className = 'particle';
   const size = minR + Math.random() * (maxR - minR);
   p.style.cssText = `
-    width: ${size}px;
-    height: ${size}px;
-    left: ${Math.random() * 100}vw;
-    top: ${80 + Math.random() * 20}vh;
-    background: ${color};
-    animation-duration: ${minDur + Math.random() * (maxDur - minDur)}s;
-    animation-delay: ${Math.random() * -15}s;
-    box-shadow: 0 0 ${size * 2}px ${color};
+    width:${size}px; height:${size}px;
+    left:${Math.random() * 100}vw;
+    top:${80 + Math.random() * 20}vh;
+    background:${color};
+    animation-duration:${minDur + Math.random() * (maxDur - minDur)}s;
+    animation-delay:${Math.random() * -15}s;
+    box-shadow:0 0 ${size * 2}px ${color};
   `;
   dom.particles.appendChild(p);
 }
 
 // ─────────────────────────────────────────────────────────────
-//  UI STATE HELPERS
+//  UI STATE
 // ─────────────────────────────────────────────────────────────
 function showLoading() {
-  dom.mainContent.classList.add('hidden');
-  dom.errorCard.classList.add('hidden');
-  dom.emptyState.classList.add('hidden');
-  dom.loading.classList.remove('hidden');
+  dom.loadingScreen.classList.remove('hidden');
+  dom.errorScreen.classList.add('hidden');
+  dom.dashboard.classList.add('hidden');
 }
 
-function showMain() {
-  dom.loading.classList.add('hidden');
-  dom.errorCard.classList.add('hidden');
-  dom.emptyState.classList.add('hidden');
-  dom.mainContent.classList.remove('hidden');
+function showDashboard() {
+  dom.loadingScreen.classList.add('hidden');
+  dom.errorScreen.classList.add('hidden');
+  dom.dashboard.classList.remove('hidden');
 }
 
-function showError(msg) {
-  dom.loading.classList.add('hidden');
-  dom.mainContent.classList.add('hidden');
-  dom.emptyState.classList.add('hidden');
-  dom.errorMsg.textContent = msg || 'Terjadi kesalahan. Coba lagi.';
-  dom.errorCard.classList.remove('hidden');
+function showError(title, msg) {
+  dom.loadingScreen.classList.add('hidden');
+  dom.dashboard.classList.add('hidden');
+  dom.errorTitle.textContent = title || 'Terjadi Kesalahan';
+  dom.errorMsg.textContent   = msg   || 'Coba lagi nanti.';
+  dom.errorScreen.classList.remove('hidden');
 }
 
 // ─────────────────────────────────────────────────────────────
-//  TOAST NOTIFICATION
+//  TOAST
 // ─────────────────────────────────────────────────────────────
 function showToast(msg) {
-  const existing = document.querySelector('.toast');
-  if (existing) existing.remove();
-
+  const old = document.querySelector('.toast');
+  if (old) old.remove();
   const toast = document.createElement('div');
   toast.className = 'toast';
   toast.textContent = msg;
   toast.style.cssText = `
-    position: fixed;
-    bottom: 24px;
-    left: 50%;
-    transform: translateX(-50%) translateY(20px);
-    background: rgba(15,12,41,0.95);
-    border: 1px solid rgba(108,99,255,0.4);
-    color: #e8eaf6;
-    padding: 12px 24px;
-    border-radius: 999px;
-    font-size: .9rem;
-    font-weight: 500;
-    z-index: 9999;
-    backdrop-filter: blur(20px);
-    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-    transition: all .3s ease;
-    opacity: 0;
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:#0f1e3d; border:1px solid rgba(79,142,247,0.4); color:#e8f0fe;
+    padding:10px 22px; border-radius:999px; font-size:.85rem; font-weight:500;
+    z-index:9999; backdrop-filter:blur(20px); box-shadow:0 8px 32px rgba(0,0,0,0.5);
+    transition:all .3s ease; opacity:0; pointer-events:none; white-space:nowrap;
   `;
   document.body.appendChild(toast);
   requestAnimationFrame(() => {
@@ -672,12 +757,6 @@ function showToast(msg) {
 // ─────────────────────────────────────────────────────────────
 //  DATE & TIME HELPERS
 // ─────────────────────────────────────────────────────────────
-function formatDate(d) {
-  return d.toLocaleDateString('id-ID', {
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-  });
-}
-
 function formatTime(unixSec, tzOffsetSec) {
   const d = new Date((unixSec + tzOffsetSec) * 1000);
   const h = String(d.getUTCHours()).padStart(2, '0');
@@ -689,22 +768,18 @@ function formatHour(d) {
   return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
-// ─────────────────────────────────────────────────────────────
-//  DEBOUNCE UTIL
-// ─────────────────────────────────────────────────────────────
 function debounce(fn, delay) {
-  let timer;
-  return (...args) => {
-    clearTimeout(timer);
-    timer = setTimeout(() => fn(...args), delay);
-  };
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), delay); };
+}
+
+function capitalise(str) {
+  return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
 // ─────────────────────────────────────────────────────────────
 //  MAP MODULE
 // ─────────────────────────────────────────────────────────────
-
-/** Map tile layer definitions */
 const MAP_LAYERS = {
   street: {
     url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -713,221 +788,83 @@ const MAP_LAYERS = {
   },
   satellite: {
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    attr: 'Tiles © Esri — Source: Esri, USGS, NOAA',
+    attr: 'Tiles © Esri',
     maxZ: 18,
-  },
-  topo: {
-    url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-    attr: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, © <a href="https://opentopomap.org">OpenTopoMap</a>',
-    maxZ: 17,
   },
   dark: {
     url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    attr: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/">CARTO</a>',
+    attr: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
     maxZ: 19,
   },
 };
 
-/**
- * Initialize or update the Leaflet map at given coords.
- * @param {number} lat
- * @param {number} lon
- * @param {object} currentWeather – OWM current weather response
- */
-function updateMap(lat, lon, currentWeather) {
-  // First-time init
+function updateMap(lat, lon, current) {
   if (!state.leafletMap) {
     state.leafletMap = L.map('weather-map', {
-      center: [lat, lon],
-      zoom: 12,
-      zoomControl: true,
+      center: [lat, lon], zoom: 11,
+      zoomControl: false,
       attributionControl: true,
     });
-
-    // Default street layer
-    const def = MAP_LAYERS.street;
-    state.currentLayer = L.tileLayer(def.url, {
-      attribution: def.attr,
-      maxZoom: def.maxZ,
-    }).addTo(state.leafletMap);
-
-    state.activeLayerKey = 'street';
+    const def = MAP_LAYERS.dark;
+    state.currentLayer = L.tileLayer(def.url, { attribution: def.attr, maxZoom: def.maxZ })
+      .addTo(state.leafletMap);
+    state.activeLayerKey = 'dark';
   } else {
-    // Pan smoothly to new location
-    state.leafletMap.flyTo([lat, lon], 12, { duration: 1.4 });
+    state.leafletMap.flyTo([lat, lon], 11, { duration: 1.2 });
   }
 
-  // Remove old marker
-  if (state.leafletMarker) {
-    state.leafletMarker.remove();
-  }
+  if (state.leafletMarker) state.leafletMarker.remove();
 
-  // Build custom icon HTML
-  const iconUrl = `${ICON_BASE}/${currentWeather.weather[0].icon}@2x.png`;
+  const iconUrl = `${ICON_BASE}/${current.weather[0].icon}@2x.png`;
   const unitSym = state.unit === 'metric' ? 'C' : 'F';
-  const temp = Math.round(currentWeather.main.temp);
+  const temp    = Math.round(current.main.temp);
+  const windVal = state.unit === 'metric'
+    ? `${Math.round(current.wind.speed * 3.6)} km/h`
+    : `${Math.round(current.wind.speed)} mph`;
 
   const customIcon = L.divIcon({
     className: 'weather-marker-icon',
-    html: `
-      <div style="position:relative; width:44px; height:44px;">
-        <div class="marker-pulse-ring"></div>
-        <div class="marker-inner">
-          <img src="${iconUrl}" alt="weather" />
-        </div>
-      </div>
-    `,
-    iconSize: [44, 44],
-    iconAnchor: [22, 44],
-    popupAnchor: [0, -48],
+    html: `<div style="position:relative;width:44px;height:44px;">
+      <div class="marker-pulse-ring"></div>
+      <div class="marker-inner"><img src="${iconUrl}" alt="weather"/></div>
+    </div>`,
+    iconSize: [44, 44], iconAnchor: [22, 44], popupAnchor: [0, -48],
   });
-
-  // Popup content
-  const windVal = state.unit === 'metric'
-    ? `${Math.round(currentWeather.wind.speed * 3.6)} km/h`
-    : `${Math.round(currentWeather.wind.speed)} mph`;
 
   const popupHTML = `
     <div class="map-popup">
-      <div class="map-popup-top">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
         <div>
-          <div class="map-popup-city">${currentWeather.name}, ${currentWeather.sys.country}</div>
+          <div class="map-popup-city">${current.name}, ${current.sys.country}</div>
           <div class="map-popup-temp">${temp}°${unitSym}</div>
         </div>
-        <img class="map-popup-icon" src="${iconUrl}" alt="${currentWeather.weather[0].description}" />
+        <img src="${iconUrl}" alt="" style="width:40px;height:40px;"/>
       </div>
-      <div class="map-popup-row">☁️ ${capitalise(currentWeather.weather[0].description)}</div>
-      <div class="map-popup-row">💧 Kelembaban: ${currentWeather.main.humidity}%</div>
-      <div class="map-popup-row">💨 Angin: ${windVal}</div>
-      <div class="map-popup-row">🌡️ Terasa: ${Math.round(currentWeather.main.feels_like)}°${unitSym}</div>
-      <div class="map-popup-row" style="margin-top:8px; font-size:.75rem; color:rgba(232,234,246,0.4);">
-        ${lat.toFixed(4)}°, ${lon.toFixed(4)}°
-      </div>
+      <div class="map-popup-row">☁️ ${capitalise(current.weather[0].description)}</div>
+      <div class="map-popup-row">💧 ${current.main.humidity}%</div>
+      <div class="map-popup-row">💨 ${windVal}</div>
     </div>
   `;
 
   state.leafletMarker = L.marker([lat, lon], { icon: customIcon })
     .addTo(state.leafletMap)
-    .bindPopup(popupHTML, { maxWidth: 260, minWidth: 220 })
+    .bindPopup(popupHTML, { maxWidth: 240, minWidth: 200 })
     .openPopup();
 
-  // Invalidate size in case map was hidden during render
   setTimeout(() => state.leafletMap.invalidateSize(), 300);
 }
 
-/** Switch map tile layer */
 function switchMapLayer(key) {
   if (!state.leafletMap || state.activeLayerKey === key) return;
   if (state.currentLayer) state.currentLayer.remove();
-  const def = MAP_LAYERS[key];
-  state.currentLayer = L.tileLayer(def.url, {
-    attribution: def.attr,
-    maxZoom: def.maxZ,
-  }).addTo(state.leafletMap);
+  const def = MAP_LAYERS[key] || MAP_LAYERS.dark;
+  state.currentLayer = L.tileLayer(def.url, { attribution: def.attr, maxZoom: def.maxZ })
+    .addTo(state.leafletMap);
   state.currentLayer.bringToBack();
   state.activeLayerKey = key;
-}
-
-/** Wire up map layer toggle buttons (idempotent) */
-function initMapLayerControls() {
-  if (dom._mapControlsInited) return;
-  dom._mapControlsInited = true;
-
-  document.querySelectorAll('.map-ctrl-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.map-ctrl-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      switchMapLayer(btn.dataset.layer);
-    });
-  });
-}
-
-// ─────────────────────────────────────────────────────────────
-//  REVERSE GEOCODING – Nominatim (OpenStreetMap, no key needed)
-// ─────────────────────────────────────────────────────────────
-async function fetchReverseGeocode(lat, lon) {
-  // Show loading state
-  dom.locFullAddr.textContent = 'Memuat alamat...';
-  dom.locFullAddr.className = 'loc-detail-val loc-loading';
-  dom.locDistrict.textContent = '—';
-  dom.locCity.textContent = '—';
-  dom.locState.textContent = '—';
-  dom.locCoords.textContent = `${lat.toFixed(6)}°, ${lon.toFixed(6)}°`;
-
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1&accept-language=id`,
-      { headers: { 'Accept-Language': 'id', 'User-Agent': 'WeatherVibe/1.0' } }
-    );
-    if (!res.ok) throw new Error('Gagal reverse geocode');
-    const data = await res.json();
-    renderLocationDetail(data, lat, lon);
-  } catch (_) {
-    dom.locFullAddr.textContent = 'Tidak dapat memuat detail alamat.';
-    dom.locFullAddr.className = 'loc-detail-val';
-  }
-}
-
-/** Render the detailed location panel from Nominatim response */
-function renderLocationDetail(data, lat, lon) {
-  const addr = data.address || {};
-
-  // Full display name – trim to avoid super-long strings
-  const fullName = (data.display_name || '—').split(',').slice(0, 6).join(',');
-  dom.locFullAddr.textContent = fullName;
-  dom.locFullAddr.className = 'loc-detail-val';
-
-  // District / subdistrict
-  const district =
-    addr.suburb ||
-    addr.subdistrict ||
-    addr.quarter ||
-    addr.neighbourhood ||
-    addr.village ||
-    addr.hamlet ||
-    '—';
-  dom.locDistrict.textContent = district;
-
-  // City / regency
-  const city =
-    addr.city ||
-    addr.town ||
-    addr.municipality ||
-    addr.county ||
-    addr.district ||
-    '—';
-  dom.locCity.textContent = city;
-
-  // State / province
-  const province = addr.state || addr.region || addr.province || '—';
-  dom.locState.textContent = province;
-
-  // Coordinates with DMS notation
-  dom.locCoords.textContent = `${toDMS(lat, 'lat')}  ${toDMS(lon, 'lon')}`;
-}
-
-/** Convert decimal degrees to DMS string (e.g. 6°12'34" S) */
-function toDMS(deg, type) {
-  const dir = type === 'lat'
-    ? (deg >= 0 ? 'N' : 'S')
-    : (deg >= 0 ? 'E' : 'W');
-  const abs = Math.abs(deg);
-  const d = Math.floor(abs);
-  const mAll = (abs - d) * 60;
-  const m = Math.floor(mAll);
-  const s = ((mAll - m) * 60).toFixed(1);
-  return `${d}°${m}'${s}" ${dir}`;
-}
-
-// ─────────────────────────────────────────────────────────────
-//  UTILS
-// ─────────────────────────────────────────────────────────────
-function capitalise(str) {
-  return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
 // ─────────────────────────────────────────────────────────────
 //  START
 // ─────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', init);
-
