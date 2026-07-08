@@ -8,7 +8,7 @@
 
 <br/>
 
-[![Live Demo](https://img.shields.io/badge/🌐_Live_Demo-weathervibe--se.netlify.app-818CF8?style=for-the-badge)](https://weathervibe-se.netlify.app/)
+[![Live Demo](https://img.shields.io/badge/🌐_Live_Demo-weather--app--gamma--henna--86.vercel.app-818CF8?style=for-the-badge)](https://weather-app-gamma-henna-86.vercel.app/)
 [![JavaScript](https://img.shields.io/badge/JavaScript-ES6+-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
 [![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/HTML)
 [![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=for-the-badge&logo=css3&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/CSS)
@@ -53,18 +53,9 @@
 
 <div align="center">
 
-### 🌡️ Current Weather
-<img src="img/ss1.png" alt="Current Weather" width="90%"/>
+### 🖥️ Dashboard
 
-<br/><br/>
-
-### 📈 Charts & Forecast
-<img src="img/ss2.png" alt="Charts and Forecast" width="90%"/>
-
-<br/><br/>
-
-### 🗺️ Interactive Map
-<img src="img/ss3.png" alt="Interactive Map" width="90%"/>
+<img src="img/ss1.png" alt="WeatherVibe Dashboard" width="90%"/>
 
 </div>
 
@@ -353,7 +344,7 @@ Distributed under the [MIT License](LICENSE). Free to use, modify, and improve.
 
 <br/>
 
-[![Live Demo](https://img.shields.io/badge/🌐_Try_It_Now-weathervibe--se.netlify.app-818CF8?style=for-the-badge)](https://weathervibe-se.netlify.app/)
+[![Live Demo](https://img.shields.io/badge/🌐_Try_It_Now-weather--app--gamma--henna--86.vercel.app-818CF8?style=for-the-badge)](https://weather-app-gamma-henna-86.vercel.app/)
 
 <br/>
 
